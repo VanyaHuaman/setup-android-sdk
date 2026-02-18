@@ -45,7 +45,7 @@ steps:
 | `build-tools-version`  | **Yes**  |                | Android build-tools version to install (e.g. `34.0.0`)                     |
 | `cmdline-tools-version`| No       | `10406996`     | Command-line tools build number used in the Google download URL             |
 | `install-dir`          | No       | See below      | Directory to install the SDK. Defaults to `$HOME/android-sdk` on Linux/macOS or `%LOCALAPPDATA%\Android\Sdk` on Windows |
-| `accept-licenses`      | No       | `Y`            | Automatically accept Android SDK licenses. `Y` or `N`                      |
+| `accept-licenses`      | No       | `Y`            | Automatically accept Android SDK licenses. Accepts `Y`, `y`, `N`, or `n`  |
 
 ## Outputs
 
