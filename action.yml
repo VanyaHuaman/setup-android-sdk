@@ -4,8 +4,7 @@ description: 'Downloads and configures the Android SDK on the runner, and sets A
 inputs:
   build-tools-version:
     description: 'Android build-tools version to install (e.g. 34.0.0)'
-    required: false
-    default: '34.0.0'
+    required: true
   cmdline-tools-version:
     description: 'Android command-line tools build number used in the download URL'
     required: false
