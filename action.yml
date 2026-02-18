@@ -13,6 +13,10 @@ inputs:
     description: 'Directory to install the Android SDK. Defaults to $HOME/android-sdk on Linux/macOS or %LOCALAPPDATA%\Android\Sdk on Windows.'
     required: false
     default: ''
+  accept-licenses:
+    description: 'Automatically accept Android SDK licenses. Y or N.'
+    required: false
+    default: 'Y'
 
 outputs:
   android-home:
@@ -71,7 +75,9 @@ runs:
       run: |
         SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
-        yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+        if [ "${{ inputs.accept-licenses }}" = "Y" ]; then
+          yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+        fi
 
         if [ ! -d "$ANDROID_HOME/build-tools/${{ inputs.build-tools-version }}" ]; then
           echo "Installing build-tools;${{ inputs.build-tools-version }}..."
@@ -138,10 +144,12 @@ runs:
       run: |
         $sdkmanager = "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"
 
-        $licensesDir = "$env:ANDROID_HOME\licenses"
-        New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
-        Set-Content -Path "$licensesDir\android-sdk-license" -Value "24333f8a63b6825ea9c5514f83c2829b004d1fee"
-        Set-Content -Path "$licensesDir\android-sdk-preview-license" -Value "84831b9409646a918e30573bab4c9c91346d8abd"
+        if ("${{ inputs.accept-licenses }}" -eq "Y") {
+          $licensesDir = "$env:ANDROID_HOME\licenses"
+          New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
+          Set-Content -Path "$licensesDir\android-sdk-license" -Value "24333f8a63b6825ea9c5514f83c2829b004d1fee"
+          Set-Content -Path "$licensesDir\android-sdk-preview-license" -Value "84831b9409646a918e30573bab4c9c91346d8abd"
+        }
 
         if (-not (Test-Path "$env:ANDROID_HOME\build-tools\${{ inputs.build-tools-version }}")) {
           Write-Host "Installing build-tools;${{ inputs.build-tools-version }}..."
