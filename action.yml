@@ -75,7 +75,7 @@ runs:
       run: |
         SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
 
-        if [ "${{ inputs.accept-licenses }}" = "Y" ]; then
+        if [[ "${{ inputs.accept-licenses }}" =~ ^[Yy]$ ]]; then
           yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
         fi
 
@@ -144,7 +144,7 @@ runs:
       run: |
         $sdkmanager = "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"
 
-        if ("${{ inputs.accept-licenses }}" -eq "Y") {
+        if ("${{ inputs.accept-licenses }}" -ieq "Y") {
           $licensesDir = "$env:ANDROID_HOME\licenses"
           New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
           Set-Content -Path "$licensesDir\android-sdk-license" -Value "24333f8a63b6825ea9c5514f83c2829b004d1fee"
