@@ -1,0 +1,178 @@
+name: 'Setup Android SDK'
+description: 'Downloads and configures the Android SDK on the runner, and sets ANDROID_HOME automatically.'
+
+inputs:
+  build-tools-version:
+    description: 'Android build-tools version to install (e.g. 34.0.0)'
+    required: false
+    default: '34.0.0'
+  cmdline-tools-version:
+    description: 'Android command-line tools build number used in the download URL'
+    required: false
+    default: '10406996'
+  install-dir:
+    description: 'Directory to install the Android SDK. Defaults to $HOME/android-sdk on Linux/macOS or %LOCALAPPDATA%\Android\Sdk on Windows.'
+    required: false
+    default: ''
+
+outputs:
+  android-home:
+    description: 'Absolute path to the installed Android SDK'
+    value: ${{ steps.capture-output.outputs.android-home }}
+
+runs:
+  using: 'composite'
+  steps:
+
+    # ── Linux / macOS ─────────────────────────────────────────────────────────
+
+    - name: Set ANDROID_HOME (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.install-dir }}" ]; then
+          ANDROID_HOME="${{ inputs.install-dir }}"
+        else
+          ANDROID_HOME="$HOME/android-sdk"
+        fi
+        mkdir -p "$ANDROID_HOME"
+        echo "ANDROID_HOME=$ANDROID_HOME" >> $GITHUB_ENV
+
+    - name: Download and extract cmdline-tools (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+        if [ -f "$SDKMANAGER" ]; then
+          echo "cmdline-tools already present, skipping download."
+        else
+          case "$(uname -s)" in
+            Linux*)  OS="linux" ;;
+            Darwin*) OS="mac" ;;
+            *)       echo "Unsupported OS: $(uname -s)"; exit 1 ;;
+          esac
+
+          URL="https://dl.google.com/android/repository/commandlinetools-${OS}-${{ inputs.cmdline-tools-version }}_latest.zip"
+          echo "Downloading cmdline-tools from $URL..."
+          curl -sL "$URL" -o /tmp/cmdline-tools.zip
+
+          mkdir -p /tmp/cmdline-tools-extract
+          unzip -q /tmp/cmdline-tools.zip -d /tmp/cmdline-tools-extract
+          mkdir -p "$ANDROID_HOME/cmdline-tools"
+          mv /tmp/cmdline-tools-extract/cmdline-tools "$ANDROID_HOME/cmdline-tools/latest"
+          rm -rf /tmp/cmdline-tools.zip /tmp/cmdline-tools-extract
+        fi
+
+        chmod +x "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+    - name: Install SDK components (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: |
+        SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+
+        yes | "$SDKMANAGER" --licenses > /dev/null 2>&1 || true
+
+        if [ ! -d "$ANDROID_HOME/build-tools/${{ inputs.build-tools-version }}" ]; then
+          echo "Installing build-tools;${{ inputs.build-tools-version }}..."
+          "$SDKMANAGER" "build-tools;${{ inputs.build-tools-version }}"
+        else
+          echo "build-tools;${{ inputs.build-tools-version }} already installed, skipping."
+        fi
+
+        if [ ! -d "$ANDROID_HOME/platform-tools" ]; then
+          echo "Installing platform-tools..."
+          "$SDKMANAGER" "platform-tools"
+        else
+          echo "platform-tools already installed, skipping."
+        fi
+
+        if [ ! -d "$ANDROID_HOME/extras/google/instantapps" ]; then
+          echo "Installing extras;google;instantapps..."
+          "$SDKMANAGER" "extras;google;instantapps"
+        else
+          echo "extras;google;instantapps already installed, skipping."
+        fi
+
+    - name: Add platform-tools to PATH (Linux/macOS)
+      if: runner.os != 'Windows'
+      shell: bash
+      run: echo "$ANDROID_HOME/platform-tools" >> $GITHUB_PATH
+
+    # ── Windows ───────────────────────────────────────────────────────────────
+
+    - name: Set ANDROID_HOME (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        if ("${{ inputs.install-dir }}" -ne "") {
+          $androidHome = "${{ inputs.install-dir }}"
+        } else {
+          $androidHome = "$env:LOCALAPPDATA\Android\Sdk"
+        }
+        New-Item -ItemType Directory -Force -Path $androidHome | Out-Null
+        echo "ANDROID_HOME=$androidHome" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+    - name: Download and extract cmdline-tools (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $sdkmanager = "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"
+
+        if (Test-Path $sdkmanager) {
+          Write-Host "cmdline-tools already present, skipping download."
+        } else {
+          $url = "https://dl.google.com/android/repository/commandlinetools-win-${{ inputs.cmdline-tools-version }}_latest.zip"
+          Write-Host "Downloading cmdline-tools from $url..."
+          Invoke-WebRequest -Uri $url -OutFile "$env:TEMP\cmdline-tools.zip"
+
+          Expand-Archive -Path "$env:TEMP\cmdline-tools.zip" -DestinationPath "$env:TEMP\cmdline-tools-extract" -Force
+          New-Item -ItemType Directory -Force -Path "$env:ANDROID_HOME\cmdline-tools" | Out-Null
+          Move-Item -Path "$env:TEMP\cmdline-tools-extract\cmdline-tools" -Destination "$env:ANDROID_HOME\cmdline-tools\latest"
+          Remove-Item -Recurse -Force "$env:TEMP\cmdline-tools.zip", "$env:TEMP\cmdline-tools-extract"
+        }
+
+    - name: Install SDK components (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        $sdkmanager = "$env:ANDROID_HOME\cmdline-tools\latest\bin\sdkmanager.bat"
+
+        $licensesDir = "$env:ANDROID_HOME\licenses"
+        New-Item -ItemType Directory -Force -Path $licensesDir | Out-Null
+        Set-Content -Path "$licensesDir\android-sdk-license" -Value "24333f8a63b6825ea9c5514f83c2829b004d1fee"
+        Set-Content -Path "$licensesDir\android-sdk-preview-license" -Value "84831b9409646a918e30573bab4c9c91346d8abd"
+
+        if (-not (Test-Path "$env:ANDROID_HOME\build-tools\${{ inputs.build-tools-version }}")) {
+          Write-Host "Installing build-tools;${{ inputs.build-tools-version }}..."
+          echo y | & $sdkmanager "build-tools;${{ inputs.build-tools-version }}"
+        } else {
+          Write-Host "build-tools;${{ inputs.build-tools-version }} already installed, skipping."
+        }
+
+        if (-not (Test-Path "$env:ANDROID_HOME\platform-tools")) {
+          Write-Host "Installing platform-tools..."
+          echo y | & $sdkmanager "platform-tools"
+        } else {
+          Write-Host "platform-tools already installed, skipping."
+        }
+
+        if (-not (Test-Path "$env:ANDROID_HOME\extras\google\instantapps")) {
+          Write-Host "Installing extras;google;instantapps..."
+          echo y | & $sdkmanager "extras;google;instantapps"
+        } else {
+          Write-Host "extras;google;instantapps already installed, skipping."
+        }
+
+    - name: Add platform-tools to PATH (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: echo "$env:ANDROID_HOME\platform-tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+    # ── Shared ────────────────────────────────────────────────────────────────
+
+    - name: Capture output
+      id: capture-output
+      shell: bash
+      run: echo "android-home=$ANDROID_HOME" >> $GITHUB_OUTPUT
